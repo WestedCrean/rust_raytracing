@@ -30,7 +30,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "9db59f8d1840da2b783a3225420cafb6694da9ef5dd27dab6207a2581bbc4c06"
 dependencies = [
  "approx",
- "glam",
+ "glam 0.18.0",
  "log",
  "num",
  "rand",
@@ -64,6 +64,12 @@ name = "glam"
 version = "0.18.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "525a3e490ba77b8e326fb67d4b44b4bd2f920f44d4cc73ccec50adc68e3bee34"
+
+[[package]]
+name = "glam"
+version = "0.20.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e4fa84eead97d5412b2a20aed4d66612a97a9e41e08eababdb9ae2bf88667490"
 
 [[package]]
 name = "lazy_static"
@@ -213,6 +219,7 @@ name = "rust_raytracing"
 version = "0.1.0"
 dependencies = [
  "bvh",
+ "glam 0.20.2",
  "rand",
  "sdl2",
 ]

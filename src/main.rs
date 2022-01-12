@@ -10,10 +10,14 @@ use sdl2::video::Window;
 use bvh::ray::Ray;
 use bvh::{Point3, Vector3};
 
+mod intersections;
 mod lights;
 mod shapes;
 mod utils;
 
+pub use crate::intersections::{
+    nearest_intersected_object, ray_sphere_intersection, NoIntersectionError,
+};
 pub use crate::lights::PositionalLight;
 pub use crate::shapes::Sphere;
 pub use crate::utils::vector_to_color;
@@ -22,10 +26,9 @@ const SCREEN_WIDTH: u32 = 800;
 const SCREEN_HEIGHT: u32 = 600;
 const SCREEN_ASPECT_RATIO: f32 = SCREEN_WIDTH as f32 / SCREEN_HEIGHT as f32;
 
-const BACKGROUND_COLOR: pixels::Color = pixels::Color::RGB(250, 100, 30);
+const FOV: u32 = 90;
 
-#[derive(Debug, Clone)]
-struct NoIntersectionError;
+const BACKGROUND_COLOR: pixels::Color = pixels::Color::RGB(243, 183, 127);
 
 #[derive(Debug, Clone)]
 struct DrawSceneError;
@@ -77,118 +80,70 @@ fn initialize_scene() -> Vec<Sphere> {
     // 1 unit balls
     scene.push(Sphere {
         center: Point3::new(1.0, 0.0, 0.0),
-        radius: 0.5,
+        radius: 10.0,
         color: Vector3::new(200.0, 0.0, 0.0),
     });
 
     scene.push(Sphere {
         center: Point3::new(0.0, 1.0, 0.0),
-        radius: 0.5,
+        radius: 10.0,
         color: Vector3::new(200.0, 0.0, 0.0),
     });
 
     scene.push(Sphere {
         center: Point3::new(-1.0, 0.0, 0.0),
-        radius: 0.5,
+        radius: 10.0,
         color: Vector3::new(200.0, 0.0, 0.0),
     });
 
     scene.push(Sphere {
         center: Point3::new(0.0, -1.0, 0.0),
-        radius: 0.5,
+        radius: 10.0,
         color: Vector3::new(200.0, 0.0, 0.0),
     });
 
     scene.push(Sphere {
         center: Point3::new(0.0, 0.0, -1.0),
-        radius: 0.5,
+        radius: 10.0,
         color: Vector3::new(200.0, 0.0, 0.0),
     });
 
     scene.push(Sphere {
         center: Point3::new(0.0, 0.0, 1.0),
-        radius: 0.5,
+        radius: 10.0,
         color: Vector3::new(200.0, 0.0, 0.0),
     });
 
     scene
 }
 
-fn ray_sphere_intersection(ray: &Ray, sphere: &Sphere) -> Result<f32, NoIntersectionError> {
-    let ray_direction: Vector3 = ray.direction;
-    let ray_origin: Vector3 = ray.origin;
-    let ray_to_sphere: Vector3 = ray.origin - sphere.center;
-    let b = ray_direction.dot(ray_to_sphere);
-    let c: f32 = (ray_origin.distance(sphere.center) * ray_origin.distance(sphere.center))
-        - (sphere.radius * sphere.radius);
-    //println!("{}", c);
-    let delta = (b * b) - 4.0 * c;
-
-    if delta > 0.0 {
-        let t1 = (-b + f32::sqrt(delta)) / 2.0;
-        let t2 = (-b - f32::sqrt(delta)) / 2.0;
-
-        if (t1 > 0.0) & (t2 > 0.0) {
-            return Ok(f32::min(t1, t2));
-        }
-    }
-    Err(NoIntersectionError)
-}
-
-fn nearest_intersected_object<'a>(
-    scene: &'a Vec<Sphere>,
-    ray: &'a Ray,
-) -> Result<(&'a Sphere, f32), NoIntersectionError> {
-    let mut distances = Vec::new();
-    let mut nearest_object: Option<&Sphere> = None;
-    let mut min_distance = f32::INFINITY;
-    println!("Scene length: {}", scene.len());
-    for obj in scene {
-        let res = ray_sphere_intersection(ray, obj);
-        match res {
-            Err(e) => return Err(e),
-            Ok(distance) => {
-                println!("Ray has an intersection with a ball");
-                distances.push(distance);
-            }
-        }
-    }
-    println!("Scene length: {}", scene.len());
-    for (pos, &distance) in distances.iter().enumerate() {
-        if distance < min_distance {
-            min_distance = distance;
-            nearest_object = scene.get(pos)
-        }
-    }
-    match nearest_object {
-        Some(obj) => return Ok((obj, min_distance)),
-        None => return Err(NoIntersectionError),
-    }
-}
-
-fn draw_scene(canvas: &Canvas<Window>, camera: Point3, scene: Vec<Sphere>) {
+fn draw_scene(canvas: &mut Canvas<Window>, camera: Point3, scene: Vec<Sphere>) {
+    let scale = (FOV as f32 * 0.5).to_radians().tan();
     for j in 0..SCREEN_HEIGHT {
         for i in 0..SCREEN_WIDTH {
-            let x: f32 = (2.0 * (i as f32 + 0.5) / SCREEN_WIDTH as f32) - 1.0;
+            //canvas.pixel(i as i16, j as i16, BACKGROUND_COLOR);
+            let x: f32 = 2.0 * (i as f32 + 0.5) / (SCREEN_WIDTH as f32 - 1.0) * scale;
             let y: f32 = 1.0
-                - (2.0 * (j as f32 + 0.5) / SCREEN_HEIGHT as f32 * 1.0
-                    / SCREEN_ASPECT_RATIO as f32);
+                - 2.0 * (j as f32 + 0.5)
+                    / (SCREEN_HEIGHT as f32 * scale * 1.0)
+                    / SCREEN_ASPECT_RATIO;
             //println!("x: {}, y: {}", x, y);
             let pixel = Point3::new(x, y, 0.0);
             let origin = camera;
 
             let direction = pixel - origin;
+
             let ray = Ray::new(origin, direction.normalize());
 
             let res = nearest_intersected_object(&scene, &ray);
 
             let (intersected_sphere, _distance) = match res {
-                Ok((sphere, distance)) => {
+                Some((sphere, distance)) => {
                     println!("Object hit");
                     (sphere, distance)
                 }
-                Err(_e) => {
-                    let _res = canvas.pixel(x as i16, y as i16, BACKGROUND_COLOR);
+                None => {
+                    let _res = canvas.pixel(i as i16, j as i16, BACKGROUND_COLOR);
                     continue;
                 }
             };
@@ -224,17 +179,10 @@ fn main() -> Result<(), String> {
     println!("Initializing scene...");
     let (camera_origin, scene) = initialize();
     println!("Drawing scene");
-    draw_scene(&canvas, camera_origin, scene);
+    draw_scene(&mut canvas, camera_origin, scene);
     println!("Scene drawed");
-    // screen, camera, objects, light
-    // raytrace image:
-    // enumerate screen space
-    // for pixel on screen
-    //  calculate ray from origin to screen to object
-    //  colour it with object colour
-
     canvas.present();
-    println!("Scene presented");
+
     let mut events = sdl_context.event_pump()?;
 
     let mut lastx = 0;
