@@ -1,19 +1,16 @@
-pub use crate::shapes::Sphere;
-use bvh::ray::Ray;
-use bvh::Vector3;
-
-#[derive(Debug, Clone)]
-pub struct NoIntersectionError;
+use crate::ray::Ray;
+use crate::shapes::Sphere;
+use nalgebra::Vector3;
 
 pub fn ray_sphere_intersection(ray: &Ray, sphere: &Sphere) -> Option<f32> {
     let radius = sphere.radius;
 
-    let ray_direction: Vector3 = ray.direction; // d = L - E ( Direction vector of ray, from start to end )
-    let ray_to_sphere: Vector3 = ray.origin - sphere.center; // f = E - C ( Vector from center sphere to ray start )
+    let ray_direction: Vector3<f32> = ray.direction(); // d = L - E ( Direction vector of ray, from start to end )
+    let ray_to_sphere: Vector3<f32> = ray.origin() - sphere.center; // f = E - C ( Vector from center sphere to ray start )
 
-    let a = ray_direction.dot(ray_direction);
-    let b = 2.0 * ray_to_sphere.dot(ray_direction);
-    let c: f32 = ray_to_sphere.dot(ray_to_sphere) - (radius * radius);
+    let a = ray_direction.dot(&ray_direction);
+    let b = 2.0 * ray_to_sphere.dot(&ray_direction);
+    let c: f32 = ray_to_sphere.dot(&ray_to_sphere) - (radius * radius);
     let delta = (b * b) - 4.0 * a * c;
 
     // println!("{}x^2 + {}x + {}", a, b, c);
@@ -33,7 +30,7 @@ pub fn ray_sphere_intersection(ray: &Ray, sphere: &Sphere) -> Option<f32> {
 }
 
 pub fn nearest_intersected_object<'a>(
-    scene: &'a Vec<Sphere>,
+    scene: &'a [Sphere],
     ray: &'a Ray,
 ) -> Option<(&'a Sphere, f32)> {
     let mut distances = Vec::new();
@@ -45,15 +42,22 @@ pub fn nearest_intersected_object<'a>(
         match res {
             None => return None,
             Some(distance) => {
-                println!("Ray has an intersection with a ball");
-                distances.push(distance);
+                println!("Ray intersected");
+                distances.push(distance)
             }
         }
     }
+    if distances.len() > 0 {
+        println!("Distances vector is nonempty");
+    } else {
+        println!("Distances vector is empty");
+    }
+
     for (pos, &distance) in distances.iter().enumerate() {
+        println!("Ray has an intersection with a ball");
         if distance < min_distance {
             min_distance = distance;
-            nearest_object = scene.get(pos)
+            nearest_object = Some(&scene[pos]);
         }
     }
     match nearest_object {
@@ -64,16 +68,17 @@ pub fn nearest_intersected_object<'a>(
 
 #[cfg(test)]
 mod tests {
-    use bvh::{ray::Ray, Point3, Vector3};
+    use crate::ray::Ray;
+    use nalgebra::Vector3;
 
-    use crate::{nearest_intersected_object, ray_sphere_intersection, Sphere};
+    use crate::intersections::{nearest_intersected_object, ray_sphere_intersection, Sphere};
 
     #[test]
-    fn ray_sphere_intersection_two_intersections() {
-        let r1 = Ray::new(Point3::new(0.0, 0.0, 0.0), Vector3::new(1.0, 0.0, 0.0));
+    fn test_ray_sphere_two_intersections() {
+        let r1 = Ray::new(Vector3::new(0.0, 0.0, 0.0), Vector3::new(1.0, 0.0, 0.0));
 
         let sphere = Sphere {
-            center: Point3::new(4.0, 0.0, 0.0),
+            center: Vector3::new(4.0, 0.0, 0.0),
             radius: 1.0,
             color: Vector3::new(0.0, 0.0, 0.0),
         };
@@ -88,10 +93,10 @@ mod tests {
 
     #[test]
     fn ray_sphere_intersection_intersection() {
-        let r2 = Ray::new(Point3::new(0.0, 0.0, 1.0), Vector3::new(1.0, 0.0, 0.0));
+        let r2 = Ray::new(Vector3::new(0.0, 0.0, 1.0), Vector3::new(1.0, 0.0, 0.0));
 
         let sphere = Sphere {
-            center: Point3::new(4.0, 0.0, 0.0),
+            center: Vector3::new(4.0, 0.0, 0.0),
             radius: 1.0,
             color: Vector3::new(0.0, 0.0, 0.0),
         };
@@ -106,10 +111,10 @@ mod tests {
 
     #[test]
     fn ray_sphere_intersection_no_intersection() {
-        let r3 = Ray::new(Point3::new(0.0, 0.0, 2.0), Vector3::new(1.0, 0.0, 0.0));
+        let r3 = Ray::new(Vector3::new(0.0, 0.0, 2.0), Vector3::new(1.0, 0.0, 0.0));
 
         let sphere = Sphere {
-            center: Point3::new(4.0, 0.0, 0.0),
+            center: Vector3::new(4.0, 0.0, 0.0),
             radius: 1.0,
             color: Vector3::new(0.0, 0.0, 0.0),
         };
@@ -127,18 +132,18 @@ mod tests {
         let mut scene = Vec::new();
 
         scene.push(Sphere {
-            center: Point3::new(7.0, 0.0, 0.0),
+            center: Vector3::new(7.0, 0.0, 0.0),
             radius: 1.2,
             color: Vector3::new(0.0, 0.0, 0.0),
         });
 
         scene.push(Sphere {
-            center: Point3::new(4.0, 0.0, 0.0),
+            center: Vector3::new(4.0, 0.0, 0.0),
             radius: 1.0,
             color: Vector3::new(0.0, 0.0, 0.0),
         });
 
-        let r = Ray::new(Point3::new(0.0, 0.0, 0.0), Vector3::new(1.0, 0.0, 0.0));
+        let r = Ray::new(Vector3::new(0.0, 0.0, 0.0), Vector3::new(1.0, 0.0, 0.0));
 
         let res = nearest_intersected_object(&scene, &r);
 
@@ -156,18 +161,18 @@ mod tests {
         let mut scene = Vec::new();
 
         scene.push(Sphere {
-            center: Point3::new(7.0, 0.0, 0.0),
+            center: Vector3::new(7.0, 0.0, 0.0),
             radius: 1.2,
             color: Vector3::new(0.0, 0.0, 0.0),
         });
 
         scene.push(Sphere {
-            center: Point3::new(4.0, 0.0, 0.0),
+            center: Vector3::new(4.0, 0.0, 0.0),
             radius: 1.0,
             color: Vector3::new(0.0, 0.0, 0.0),
         });
 
-        let r = Ray::new(Point3::new(0.0, 0.0, 3.0), Vector3::new(1.0, 0.0, 0.0));
+        let r = Ray::new(Vector3::new(0.0, 0.0, 3.0), Vector3::new(1.0, 0.0, 0.0));
 
         let res = nearest_intersected_object(&scene, &r);
 

@@ -1,3 +1,9 @@
+mod camera;
+mod intersections;
+mod lights;
+mod ray;
+mod scene;
+mod shapes;
 extern crate sdl2;
 
 use sdl2::event::Event;
@@ -7,149 +13,85 @@ use sdl2::pixels;
 use sdl2::render::Canvas;
 use sdl2::video::Window;
 
-use bvh::ray::Ray;
-use bvh::{Point3, Vector3};
+//use glam::Mat4;
 
-mod intersections;
-mod lights;
-mod shapes;
-mod utils;
-
-pub use crate::intersections::{
-    nearest_intersected_object, ray_sphere_intersection, NoIntersectionError,
-};
-pub use crate::lights::PositionalLight;
-pub use crate::shapes::Sphere;
-pub use crate::utils::vector_to_color;
+use crate::intersections::nearest_intersected_object;
+use rand::Rng;
+// use crate::lights::PositionalLight;
+use crate::camera::Camera;
+use crate::scene::Scene;
+use crate::shapes::Sphere;
+use nalgebra::Vector3;
 
 const SCREEN_WIDTH: u32 = 800;
 const SCREEN_HEIGHT: u32 = 600;
-const SCREEN_ASPECT_RATIO: f32 = SCREEN_WIDTH as f32 / SCREEN_HEIGHT as f32;
-
-const FOV: u32 = 90;
 
 const BACKGROUND_COLOR: pixels::Color = pixels::Color::RGB(243, 183, 127);
 
 #[derive(Debug, Clone)]
 struct DrawSceneError;
 
-fn initialize() -> (Point3, Vec<Sphere>) {
-    let camera_origin = Point3::new(0.0, 0.0, 0.0);
-    let scene = initialize_scene();
-
-    (camera_origin, scene)
-}
-
-fn initialize_scene() -> Vec<Sphere> {
-    let mut scene = Vec::new();
-
-    scene.push(Sphere {
-        center: Point3::new(-0.2, 0.0, -1.0),
-        radius: 0.7,
-        color: Vector3::new(218.0, 255.0, 63.0),
-    });
-
-    scene.push(Sphere {
-        center: Point3::new(400.0, 400.0, 51.0),
-        radius: 5.0,
-        color: Vector3::new(218.0, 255.0, 63.0),
-    });
-
-    scene.push(Sphere {
-        center: Point3::new(0.1, -0.3, 0.0),
-        radius: 0.1,
-        color: Vector3::new(0.0, 255.0, 205.0),
-    });
-    scene.push(Sphere {
-        center: Point3::new(-0.3, 0.0, 0.0),
-        radius: 0.15,
-        color: Vector3::new(27.0, 44.0, 193.0),
-    });
-    scene.push(Sphere {
-        center: Point3::new(0.5, 1.0, 0.0),
-        radius: 0.2,
-        color: Vector3::new(189.0, 44.0, 193.0),
-    });
-
-    scene.push(Sphere {
-        center: Point3::new(0.5, 1.0, 0.0),
-        radius: 0.2,
-        color: Vector3::new(189.0, 44.0, 193.0),
-    });
-
-    // 1 unit balls
-    scene.push(Sphere {
-        center: Point3::new(1.0, 0.0, 0.0),
-        radius: 10.0,
-        color: Vector3::new(200.0, 0.0, 0.0),
-    });
-
-    scene.push(Sphere {
-        center: Point3::new(0.0, 1.0, 0.0),
-        radius: 10.0,
-        color: Vector3::new(200.0, 0.0, 0.0),
-    });
-
-    scene.push(Sphere {
-        center: Point3::new(-1.0, 0.0, 0.0),
-        radius: 10.0,
-        color: Vector3::new(200.0, 0.0, 0.0),
-    });
-
-    scene.push(Sphere {
-        center: Point3::new(0.0, -1.0, 0.0),
-        radius: 10.0,
-        color: Vector3::new(200.0, 0.0, 0.0),
-    });
-
-    scene.push(Sphere {
-        center: Point3::new(0.0, 0.0, -1.0),
-        radius: 10.0,
-        color: Vector3::new(200.0, 0.0, 0.0),
-    });
-
-    scene.push(Sphere {
-        center: Point3::new(0.0, 0.0, 1.0),
-        radius: 10.0,
-        color: Vector3::new(200.0, 0.0, 0.0),
-    });
+fn initialize_scene() -> Scene {
+    let mut scene = Scene::default();
+    scene.push(Sphere::new(
+        Vector3::new(-0.2, 0.0, -1.0),
+        0.7,
+        Vector3::new(218.0, 255.0, 63.0),
+    ));
+    scene.push(Sphere::new(
+        Vector3::new(400.0, 400.0, 51.0),
+        5.0,
+        Vector3::new(218.0, 255.0, 63.0),
+    ));
+    scene.push(Sphere::new(
+        Vector3::new(0.1, -0.3, 0.0),
+        0.1,
+        Vector3::new(0.0, 255.0, 205.0),
+    ));
+    scene.push(Sphere::new(
+        Vector3::new(-0.3, 0.0, 0.0),
+        0.15,
+        Vector3::new(27.0, 44.0, 193.0),
+    ));
+    scene.push(Sphere::new(
+        Vector3::new(0.5, 1.0, 0.0),
+        0.2,
+        Vector3::new(189.0, 44.0, 193.0),
+    ));
+    scene.push(Sphere::new(
+        Vector3::new(0.5, 1.0, 0.0),
+        0.2,
+        Vector3::new(189.0, 44.0, 193.0),
+    ));
 
     scene
 }
 
-fn draw_scene(canvas: &mut Canvas<Window>, camera: Point3, scene: Vec<Sphere>) {
-    let scale = (FOV as f32 * 0.5).to_radians().tan();
+fn draw_scene(canvas: &mut Canvas<Window>, cam: &Camera, scene: &Scene) {
     for j in 0..SCREEN_HEIGHT {
         for i in 0..SCREEN_WIDTH {
             //canvas.pixel(i as i16, j as i16, BACKGROUND_COLOR);
-            let x: f32 = 2.0 * (i as f32 + 0.5) / (SCREEN_WIDTH as f32 - 1.0) * scale;
-            let y: f32 = 1.0
-                - 2.0 * (j as f32 + 0.5)
-                    / (SCREEN_HEIGHT as f32 * scale * 1.0)
-                    / SCREEN_ASPECT_RATIO;
-            //println!("x: {}, y: {}", x, y);
-            let pixel = Point3::new(x, y, 0.0);
-            let origin = camera;
 
-            let direction = pixel - origin;
-
-            let ray = Ray::new(origin, direction.normalize());
+            let mut rng = rand::thread_rng();
+            let x = (i as f32 + rng.gen::<f32>()) / SCREEN_WIDTH as f32;
+            let y = (j as f32 + rng.gen::<f32>()) / SCREEN_HEIGHT as f32;
+            let ray = cam.get_ray(x, y);
 
             let res = nearest_intersected_object(&scene, &ray);
 
             let (intersected_sphere, _distance) = match res {
                 Some((sphere, distance)) => {
-                    println!("Object hit");
+                    println!("Closest intersected object exists.");
                     (sphere, distance)
                 }
                 None => {
+                    println!("No intersections");
                     let _res = canvas.pixel(i as i16, j as i16, BACKGROUND_COLOR);
                     continue;
                 }
             };
 
-            let color = vector_to_color(intersected_sphere.color);
-            let res = canvas.pixel(i as i16, j as i16, color);
+            let res = canvas.pixel(i as i16, j as i16, intersected_sphere.get_color());
 
             match res {
                 Ok(_) => {}
@@ -171,15 +113,30 @@ fn main() -> Result<(), String> {
 
     let mut canvas = window.into_canvas().build().map_err(|e| e.to_string())?;
 
-    canvas.set_draw_color(pixels::Color::RGB(0, 0, 0));
-    canvas.clear();
-    // raytracing logic
+    //canvas.set_draw_color(pixels::Color::RGB(0, 0, 0));
+    //canvas.clear();
 
     // initialize scene:
     println!("Initializing scene...");
-    let (camera_origin, scene) = initialize();
+
+    let scene = initialize_scene();
+    let look_from = Vector3::new(0.0, 0.0, 0.0);
+    let look_at = scene[0].center(); // Vector3::new(1.0, 0.0, 0.0);
+    let focus_dist = 10.0;
+    let aperture = 0.1;
+
+    let cam = Camera::new(
+        look_from,
+        look_at,
+        Vector3::new(0.0, 1.0, 0.0),
+        90.0,
+        SCREEN_WIDTH as f32 / SCREEN_HEIGHT as f32,
+        aperture,
+        focus_dist,
+    );
+
     println!("Drawing scene");
-    draw_scene(&mut canvas, camera_origin, scene);
+    draw_scene(&mut canvas, &cam, &scene);
     println!("Scene drawed");
     canvas.present();
 
