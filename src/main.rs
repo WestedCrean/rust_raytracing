@@ -1,4 +1,5 @@
 mod camera;
+mod colors;
 mod intersections;
 mod lights;
 mod ray;
@@ -13,12 +14,16 @@ use sdl2::pixels;
 use sdl2::render::Canvas;
 use sdl2::video::Window;
 
-//use glam::Mat4;
-
 use crate::intersections::nearest_intersected_object;
+use crate::intersections::IntersectionRecord;
+
 use rand::Rng;
 // use crate::lights::PositionalLight;
 use crate::camera::Camera;
+use crate::colors::{
+    get_color, get_vector, BLACK, CARIBBEAN_GREEN, CYCLAMEN, DEEP_PURPLE, MIDDLE_YELLOW,
+    ORANGE_YELLOW_CRAYOLA, PARADISE_PINK,
+};
 use crate::scene::Scene;
 use crate::shapes::Sphere;
 use nalgebra::Vector3;
@@ -26,42 +31,56 @@ use nalgebra::Vector3;
 const SCREEN_WIDTH: u32 = 800;
 const SCREEN_HEIGHT: u32 = 600;
 
-const BACKGROUND_COLOR: pixels::Color = pixels::Color::RGB(243, 183, 127);
+// colors palette
+
+const BACKGROUND_COLOR: pixels::Color = BLACK;
 
 #[derive(Debug, Clone)]
 struct DrawSceneError;
 
 fn initialize_scene() -> Scene {
     let mut scene = Scene::default();
+
     scene.push(Sphere::new(
-        Vector3::new(-0.2, 0.0, -1.0),
+        Vector3::new(2.0, 0.0, 0.0),
         0.7,
-        Vector3::new(218.0, 255.0, 63.0),
+        get_vector(CARIBBEAN_GREEN),
     ));
+
     scene.push(Sphere::new(
-        Vector3::new(400.0, 400.0, 51.0),
-        5.0,
-        Vector3::new(218.0, 255.0, 63.0),
-    ));
-    scene.push(Sphere::new(
-        Vector3::new(0.1, -0.3, 0.0),
+        Vector3::new(0.96, 0.36, 0.0),
         0.1,
-        Vector3::new(0.0, 255.0, 205.0),
+        get_vector(CYCLAMEN),
     ));
+
     scene.push(Sphere::new(
-        Vector3::new(-0.3, 0.0, 0.0),
+        Vector3::new(0.96, 0.85, -0.52),
         0.15,
-        Vector3::new(27.0, 44.0, 193.0),
+        get_vector(DEEP_PURPLE),
     ));
+
     scene.push(Sphere::new(
-        Vector3::new(0.5, 1.0, 0.0),
-        0.2,
-        Vector3::new(189.0, 44.0, 193.0),
+        Vector3::new(0.96, -0.53, -0.36),
+        0.15,
+        get_vector(ORANGE_YELLOW_CRAYOLA),
     ));
+
     scene.push(Sphere::new(
-        Vector3::new(0.5, 1.0, 0.0),
+        Vector3::new(1.0, -0.9, 0.1),
+        0.23,
+        get_vector(PARADISE_PINK),
+    ));
+
+    scene.push(Sphere::new(
+        Vector3::new(1.3, 0.6, 0.6),
+        0.15,
+        get_vector(MIDDLE_YELLOW),
+    ));
+
+    scene.push(Sphere::new(
+        Vector3::new(3.0, -0.4, 1.0),
         0.2,
-        Vector3::new(189.0, 44.0, 193.0),
+        get_vector(DEEP_PURPLE),
     ));
 
     scene
@@ -72,33 +91,60 @@ fn draw_scene(canvas: &mut Canvas<Window>, cam: &Camera, scene: &Scene) {
         for i in 0..SCREEN_WIDTH {
             //canvas.pixel(i as i16, j as i16, BACKGROUND_COLOR);
 
-            let mut rng = rand::thread_rng();
-            let x = (i as f32 + rng.gen::<f32>()) / SCREEN_WIDTH as f32;
-            let y = (j as f32 + rng.gen::<f32>()) / SCREEN_HEIGHT as f32;
+            // let mut rng = rand::thread_rng();
+            //let x = (i as f32 + rng.gen::<f32>()) / SCREEN_WIDTH as f32;
+            //let y = (j as f32 + rng.gen::<f32>()) / SCREEN_HEIGHT as f32;
+
+            let x = (i as f32) / SCREEN_WIDTH as f32;
+            let y = (j as f32) / SCREEN_HEIGHT as f32;
+
             let ray = cam.get_ray(x, y);
 
-            let res = nearest_intersected_object(&scene, &ray);
+            let res: Option<IntersectionRecord> =
+                nearest_intersected_object(scene, &ray, 0.001, f32::MAX);
 
-            let (intersected_sphere, _distance) = match res {
-                Some((sphere, distance)) => {
-                    println!("Closest intersected object exists.");
-                    (sphere, distance)
+            match res {
+                Some(res) => {
+                    let _res = canvas.pixel(i as i16, j as i16, res.object_color);
                 }
                 None => {
-                    println!("No intersections");
                     let _res = canvas.pixel(i as i16, j as i16, BACKGROUND_COLOR);
                     continue;
                 }
             };
-
-            let res = canvas.pixel(i as i16, j as i16, intersected_sphere.get_color());
-
-            match res {
-                Ok(_) => {}
-                Err(e) => println!("{}", e),
-            }
         }
     }
+}
+
+fn render_scene(canvas: &mut Canvas<Window>, look_at_object: i32) {
+    // initialize scene:
+    println!("Initializing scene...");
+
+    let scene = initialize_scene();
+    let look_from = Vector3::new(-0.5, 0.0, 0.0);
+    let look_at = scene.get_nth_element_center(look_at_object);
+    let focus_dist = 10.0;
+    let aperture = 0.1;
+
+    let look_at = match look_at {
+        Some(look_at) => look_at,
+        None => Vector3::new(1.0, 0.0, 0.0),
+    };
+
+    let cam = Camera::new(
+        look_from,
+        look_at,
+        Vector3::new(0.0, 1.0, 0.0),
+        55.0,
+        SCREEN_WIDTH as f32 / SCREEN_HEIGHT as f32,
+        aperture,
+        focus_dist,
+    );
+
+    println!("Drawing scene");
+    draw_scene(canvas, &cam, &scene);
+    println!("Scene drawed");
+    canvas.present();
 }
 
 fn main() -> Result<(), String> {
@@ -112,33 +158,9 @@ fn main() -> Result<(), String> {
         .map_err(|e| e.to_string())?;
 
     let mut canvas = window.into_canvas().build().map_err(|e| e.to_string())?;
+    let mut look_at_object = 0;
 
-    //canvas.set_draw_color(pixels::Color::RGB(0, 0, 0));
-    //canvas.clear();
-
-    // initialize scene:
-    println!("Initializing scene...");
-
-    let scene = initialize_scene();
-    let look_from = Vector3::new(0.0, 0.0, 0.0);
-    let look_at = scene[0].center(); // Vector3::new(1.0, 0.0, 0.0);
-    let focus_dist = 10.0;
-    let aperture = 0.1;
-
-    let cam = Camera::new(
-        look_from,
-        look_at,
-        Vector3::new(0.0, 1.0, 0.0),
-        90.0,
-        SCREEN_WIDTH as f32 / SCREEN_HEIGHT as f32,
-        aperture,
-        focus_dist,
-    );
-
-    println!("Drawing scene");
-    draw_scene(&mut canvas, &cam, &scene);
-    println!("Scene drawed");
-    canvas.present();
+    render_scene(&mut canvas, look_at_object);
 
     let mut events = sdl_context.event_pump()?;
 
@@ -156,6 +178,11 @@ fn main() -> Result<(), String> {
                 } => {
                     if keycode == Keycode::Escape {
                         break 'main;
+                    }
+
+                    if keycode == Keycode::Space {
+                        look_at_object += 1;
+                        render_scene(&mut canvas, look_at_object);
                     }
                 }
 

@@ -1,10 +1,22 @@
-use crate::ray::Ray;
+use nalgebra::Vector3;
 
-pub trait Intersectable: Sync {
-    fn hit(&self, ray: &Ray, t_min: f32, t_max: f32) -> Option<f32>;
-}
+use crate::intersections::Intersectable;
 
 #[derive(Default)]
-struct Scene {
-    hitable: Vec<Box<dyn Intersectable>>,
+pub struct Scene {
+    pub objects: Vec<Box<dyn Intersectable>>,
+}
+
+impl Scene {
+    pub fn push(&mut self, object: impl Intersectable + 'static) {
+        self.objects.push(Box::new(object))
+    }
+
+    pub fn get_nth_element_center(&self, n: i32) -> Option<Vector3<f32>> {
+        if let Some(obj) = self.objects.get(n as usize) {
+            return Some(obj.center());
+        }
+
+        None
+    }
 }

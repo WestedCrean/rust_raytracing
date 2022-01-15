@@ -1,6 +1,7 @@
+use crate::intersections::{Intersectable, IntersectionRecord};
+use crate::ray::Ray;
 use nalgebra::Vector3;
 use sdl2::pixels::Color;
-use crate::intersections::
 
 #[derive(Debug, Clone)]
 pub struct Sphere {
@@ -25,6 +26,7 @@ impl Sphere {
     pub fn center(&self) -> Vector3<f32> {
         self.center
     }
+
     pub fn radius(&self) -> f32 {
         self.radius
     }
@@ -38,5 +40,51 @@ impl Sphere {
         let g = self.color[1];
         let b = self.color[2];
         Color::RGB(r as u8, g as u8, b as u8)
+    }
+}
+
+impl Intersectable for Sphere {
+    fn center(&self) -> Vector3<f32> {
+        self.center
+    }
+
+    fn intersect(&self, ray: &Ray, t_min: f32, t_max: f32) -> Option<IntersectionRecord> {
+        // a = L - E ( Direction vector of ray, from start to end )
+        let ray_to_sphere: Vector3<f32> = ray.origin() - self.center; // f = E - C ( Vector from center sphere to ray start )
+
+        let a = ray.direction().dot(&ray.direction());
+        let b = ray_to_sphere.dot(&ray.direction());
+        let c: f32 = ray_to_sphere.dot(&ray_to_sphere) - self.radius.powi(2);
+
+        // let delta = (b * b) - 4.0 * a * c;
+        let delta = b.powi(2) - a * c;
+        // println!("{}x^2 + {}x + {}", a, b, c);
+        // println!("delta: {}", delta);
+
+        if delta > 0.0 {
+            let delta_squared = f32::sqrt(delta);
+            let t = (-b + -delta_squared) / a;
+
+            if t_min < t && t < t_max {
+                let p = ray.point_at_parameter(t);
+                return Some(IntersectionRecord {
+                    intersection_point: t,
+                    intersection_vector: p,
+                    object_color: self.get_color(),
+                });
+            }
+
+            let t = (-b + delta_squared) / a;
+
+            if t_min < t && t < t_max {
+                let p = ray.point_at_parameter(t);
+                return Some(IntersectionRecord {
+                    intersection_point: t,
+                    intersection_vector: p,
+                    object_color: self.get_color(),
+                });
+            }
+        }
+        None
     }
 }

@@ -1,6 +1,18 @@
 use crate::ray::Ray;
+use crate::scene::Scene;
 use crate::shapes::Sphere;
+use sdl2::pixels::Color;
+
 use nalgebra::Vector3;
+pub struct IntersectionRecord {
+    pub intersection_point: f32,
+    pub intersection_vector: Vector3<f32>,
+    pub object_color: Color,
+}
+pub trait Intersectable: Sync {
+    fn center(&self) -> Vector3<f32>;
+    fn intersect(&self, ray: &Ray, t_min: f32, t_max: f32) -> Option<IntersectionRecord>;
+}
 
 pub fn ray_sphere_intersection(ray: &Ray, sphere: &Sphere) -> Option<f32> {
     let radius = sphere.radius;
@@ -30,46 +42,29 @@ pub fn ray_sphere_intersection(ray: &Ray, sphere: &Sphere) -> Option<f32> {
 }
 
 pub fn nearest_intersected_object<'a>(
-    scene: &'a [Sphere],
+    scene: &Scene,
     ray: &'a Ray,
-) -> Option<(&'a Sphere, f32)> {
-    let mut distances = Vec::new();
-    let mut nearest_object: Option<&Sphere> = None;
-    let mut min_distance = f32::INFINITY;
+    min_distance: f32,
+    max_distance: f32,
+) -> Option<IntersectionRecord> {
+    let mut nearest_object_distance = max_distance;
+    let mut intersect_anything: Option<IntersectionRecord> = None;
 
-    for obj in scene {
-        let res = ray_sphere_intersection(ray, obj);
-        match res {
-            None => return None,
-            Some(distance) => {
-                println!("Ray intersected");
-                distances.push(distance)
-            }
+    for obj in scene.objects.iter() {
+        if let Some(intersection) = obj.intersect(ray, min_distance, nearest_object_distance) {
+            nearest_object_distance = intersection.intersection_point;
+            intersect_anything = Some(intersection);
         }
     }
-    if distances.len() > 0 {
-        println!("Distances vector is nonempty");
-    } else {
-        println!("Distances vector is empty");
-    }
 
-    for (pos, &distance) in distances.iter().enumerate() {
-        println!("Ray has an intersection with a ball");
-        if distance < min_distance {
-            min_distance = distance;
-            nearest_object = Some(&scene[pos]);
-        }
-    }
-    match nearest_object {
-        Some(obj) => return Some((obj, min_distance)),
-        None => return None,
-    }
+    intersect_anything
 }
 
 #[cfg(test)]
 mod tests {
-    use crate::ray::Ray;
+    use crate::{ray::Ray, scene::Scene};
     use nalgebra::Vector3;
+    use sdl2::pixels::Color;
 
     use crate::intersections::{nearest_intersected_object, ray_sphere_intersection, Sphere};
 
@@ -129,12 +124,12 @@ mod tests {
 
     #[test]
     fn test_nearest_object_trivial() {
-        let mut scene = Vec::new();
+        let mut scene = Scene::default();
 
         scene.push(Sphere {
             center: Vector3::new(7.0, 0.0, 0.0),
             radius: 1.2,
-            color: Vector3::new(0.0, 0.0, 0.0),
+            color: Vector3::new(255.0, 255.0, 255.0),
         });
 
         scene.push(Sphere {
@@ -145,12 +140,15 @@ mod tests {
 
         let r = Ray::new(Vector3::new(0.0, 0.0, 0.0), Vector3::new(1.0, 0.0, 0.0));
 
-        let res = nearest_intersected_object(&scene, &r);
+        let res = nearest_intersected_object(&scene, &r, 0.01, 10.0);
 
         match res {
-            Some((sphere, distance)) => {
-                assert_eq!(sphere.radius, 1.0);
-                assert_eq!(distance, 3.0);
+            Some(intersection) => {
+                assert_eq!(
+                    intersection.object_color,
+                    Color::RGB(0.0 as u8, 0.0 as u8, 0.0 as u8)
+                );
+                assert_eq!(intersection.intersection_point, 3.0);
             }
             None => assert!(false),
         }
@@ -158,7 +156,7 @@ mod tests {
 
     #[test]
     fn test_nearest_object_no_intersection() {
-        let mut scene = Vec::new();
+        let mut scene = Scene::default();
 
         scene.push(Sphere {
             center: Vector3::new(7.0, 0.0, 0.0),
@@ -174,7 +172,7 @@ mod tests {
 
         let r = Ray::new(Vector3::new(0.0, 0.0, 3.0), Vector3::new(1.0, 0.0, 0.0));
 
-        let res = nearest_intersected_object(&scene, &r);
+        let res = nearest_intersected_object(&scene, &r, 0.01, 10.0);
 
         match res {
             Some(_) => assert!(false),
