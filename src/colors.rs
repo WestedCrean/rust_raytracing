@@ -16,15 +16,9 @@ pub const DEEP_MAGENTA: Color = Color::RGB(181, 23, 158);
 pub const BLACK: Color = Color::RGB(0, 0, 32);
 
 pub fn get_color(vec: Vector3<f32>) -> Color {
-    let r = vec[0];
-    let g = vec[1];
-    let b = vec[2];
-    Color::RGB(r as u8, g as u8, b as u8)
+    Color::RGB(vec[0] as u8, vec[1] as u8, vec[2] as u8)
 }
 
 pub fn get_vector(col: Color) -> Vector3<f32> {
-    let r = col.r;
-    let g = col.g;
-    let b = col.g;
-    Vector3::new(r as f32, g as f32, b as f32)
+    Vector3::new(col.r as f32, col.g as f32, col.b as f32)
 }

@@ -16,8 +16,8 @@ use sdl2::video::Window;
 
 use crate::intersections::nearest_intersected_object;
 use crate::intersections::IntersectionRecord;
-
 use rand::Rng;
+use rayon::prelude::*;
 // use crate::lights::PositionalLight;
 use crate::camera::Camera;
 use crate::colors::{
@@ -27,9 +27,11 @@ use crate::colors::{
 use crate::scene::Scene;
 use crate::shapes::Sphere;
 use nalgebra::Vector3;
+use sdl2::pixels::Color;
 
-const SCREEN_WIDTH: u32 = 800;
-const SCREEN_HEIGHT: u32 = 600;
+const SCREEN_WIDTH: u32 = 1920;
+const SCREEN_HEIGHT: u32 = 1080;
+const SAMPLES_PER_PIXEL: u32 = 4;
 
 // colors palette
 
@@ -86,34 +88,56 @@ fn initialize_scene() -> Scene {
     scene
 }
 
-fn draw_scene(canvas: &mut Canvas<Window>, cam: &Camera, scene: &Scene) {
+fn draw_scene(canvas: &mut Canvas<Window>, cam: &Camera, scene: &Scene) -> Result<(), String> {
+    // using nice and fast rayon code used from https://github.com/fralken/ray-tracing-in-one-weekend/blob/master/src/main.rs
+    // courtesy of https://github.com/fralken
+    // as I don't understand flat maps and rayon very much yet
+    let colors = (0..SCREEN_HEIGHT)
+        .into_par_iter()
+        .rev()
+        .flat_map(|j| {
+            (0..SCREEN_WIDTH)
+                .flat_map(|i| {
+                    let color: Vector3<f32> = (0..SAMPLES_PER_PIXEL)
+                        .map(|_| {
+                            let x = (i as f32) / SCREEN_WIDTH as f32;
+                            let y = (j as f32) / SCREEN_HEIGHT as f32;
+
+                            let ray = cam.get_ray(x, y);
+
+                            let res = nearest_intersected_object(scene, &ray, 0.001, f32::MAX);
+
+                            match res {
+                                Some(res) => return get_vector(res.object_color),
+                                None => return get_vector(BACKGROUND_COLOR),
+                            }
+                        })
+                        .sum();
+
+                    color
+                        .iter()
+                        .map(|c| (c / SAMPLES_PER_PIXEL as f32) as u8)
+                        .collect::<Vec<u8>>()
+                })
+                .collect::<Vec<u8>>()
+        })
+        .collect::<Vec<u8>>();
+
     for j in 0..SCREEN_HEIGHT {
         for i in 0..SCREEN_WIDTH {
-            //canvas.pixel(i as i16, j as i16, BACKGROUND_COLOR);
-
-            // let mut rng = rand::thread_rng();
-            //let x = (i as f32 + rng.gen::<f32>()) / SCREEN_WIDTH as f32;
-            //let y = (j as f32 + rng.gen::<f32>()) / SCREEN_HEIGHT as f32;
-
-            let x = (i as f32) / SCREEN_WIDTH as f32;
-            let y = (j as f32) / SCREEN_HEIGHT as f32;
-
-            let ray = cam.get_ray(x, y);
-
-            let res: Option<IntersectionRecord> =
-                nearest_intersected_object(scene, &ray, 0.001, f32::MAX);
-
-            match res {
-                Some(res) => {
-                    let _res = canvas.pixel(i as i16, j as i16, res.object_color);
-                }
-                None => {
-                    let _res = canvas.pixel(i as i16, j as i16, BACKGROUND_COLOR);
-                    continue;
-                }
-            };
+            canvas.pixel(
+                i as i16,
+                j as i16,
+                Color::RGB(
+                    colors[(3 * j * SCREEN_WIDTH + i * 3 + 0) as usize],
+                    colors[(3 * j * SCREEN_WIDTH + i * 3 + 1) as usize],
+                    colors[(3 * j * SCREEN_WIDTH + i * 3 + 2) as usize],
+                ),
+            )?;
         }
     }
+
+    Ok(())
 }
 
 fn render_scene(canvas: &mut Canvas<Window>, look_at_object: i32) {
