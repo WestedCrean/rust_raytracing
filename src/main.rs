@@ -29,8 +29,8 @@ use crate::shapes::Sphere;
 use nalgebra::Vector3;
 use sdl2::pixels::Color;
 
-const SCREEN_WIDTH: u32 = 1920;
-const SCREEN_HEIGHT: u32 = 1080;
+const SCREEN_WIDTH: u32 = 800;
+const SCREEN_HEIGHT: u32 = 600;
 const SAMPLES_PER_PIXEL: u32 = 4;
 
 // colors palette

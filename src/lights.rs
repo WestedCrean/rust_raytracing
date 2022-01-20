@@ -3,6 +3,7 @@ use sdl2::pixels::Color;
 
 pub struct PositionalLight {
     pub center: Vector3<f32>,
+    pub intensity: f32,
     pub color: Vector3<f32>,
     //ambient: Vector3,
     //diffuse: Vector3,
@@ -10,12 +11,20 @@ pub struct PositionalLight {
 }
 
 impl PositionalLight {
-    pub fn new(center: Vector3<f32>, color: Vector3<f32>) -> Self {
-        PositionalLight { center, color }
+    pub fn new(center: Vector3<f32>, intensity: f32, color: Vector3<f32>) -> Self {
+        PositionalLight {
+            center,
+            intensity,
+            color,
+        }
     }
 
     pub fn center(&self) -> Vector3<f32> {
         self.center
+    }
+
+    pub fn intensity(&self) -> f32 {
+        self.intensity
     }
 
     pub fn color_vector(&self) -> Vector3<f32> {
