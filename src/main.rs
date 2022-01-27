@@ -21,7 +21,7 @@ use rayon::prelude::*;
 // use crate::lights::PositionalLight;
 use crate::camera::Camera;
 use crate::colors::{
-    get_color, get_vector, BLACK, CARIBBEAN_GREEN, CYCLAMEN, DEEP_PURPLE, MIDDLE_YELLOW,
+    get_vector, BLACK, CARIBBEAN_GREEN, CYCLAMEN, DEEP_PURPLE, MIDDLE_YELLOW,
     ORANGE_YELLOW_CRAYOLA, PARADISE_PINK,
 };
 use crate::scene::Scene;
@@ -83,6 +83,18 @@ fn initialize_scene() -> Scene {
         Vector3::new(3.0, -0.4, 1.0),
         0.2,
         get_vector(DEEP_PURPLE),
+    ));
+
+    scene
+}
+
+fn initialize_lights() -> Scene {
+    let mut scene = Scene::default();
+
+    scene.push(Sphere::new(
+        Vector3::new(2.0, 0.0, 0.0),
+        0.7,
+        get_vector(CARIBBEAN_GREEN),
     ));
 
     scene
