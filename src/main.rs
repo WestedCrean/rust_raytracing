@@ -100,7 +100,12 @@ fn initialize_lights() -> Scene {
     scene
 }
 
-fn draw_scene(canvas: &mut Canvas<Window>, cam: &Camera, scene: &Scene) -> Result<(), String> {
+fn draw_scene(
+    canvas: &mut Canvas<Window>,
+    cam: &Camera,
+    scene: &Scene,
+    lights: &Scene,
+) -> Result<(), String> {
     // using nice and fast rayon code used from https://github.com/fralken/ray-tracing-in-one-weekend/blob/master/src/main.rs
     // courtesy of https://github.com/fralken
     // as I don't understand flat maps and rayon very much yet
@@ -120,7 +125,10 @@ fn draw_scene(canvas: &mut Canvas<Window>, cam: &Camera, scene: &Scene) -> Resul
                             let res = nearest_intersected_object(scene, &ray, 0.001, f32::MAX);
 
                             match res {
-                                Some(res) => return get_vector(res.object_color),
+                                Some(res) => {
+                                    /* compute lighting/shading for res.object_color */
+                                    return get_vector(res.object_color);
+                                }
                                 None => return get_vector(BACKGROUND_COLOR),
                             }
                         })
@@ -152,12 +160,13 @@ fn draw_scene(canvas: &mut Canvas<Window>, cam: &Camera, scene: &Scene) -> Resul
     Ok(())
 }
 
-fn render_scene(canvas: &mut Canvas<Window>, look_at_object: i32) {
+fn render_scene(canvas: &mut Canvas<Window>, look_at_object: i32, camera_movement: &Vector3<f32>) {
     // initialize scene:
     println!("Initializing scene...");
 
     let scene = initialize_scene();
-    let look_from = Vector3::new(-0.5, 0.0, 0.0);
+    let lights = initialize_lights();
+    let look_from = Vector3::new(-0.5, 0.0, 0.0) + camera_movement;
     let look_at = scene.get_nth_element_center(look_at_object);
     let focus_dist = 10.0;
     let aperture = 0.1;
@@ -178,7 +187,7 @@ fn render_scene(canvas: &mut Canvas<Window>, look_at_object: i32) {
     );
 
     println!("Drawing scene");
-    draw_scene(canvas, &cam, &scene);
+    draw_scene(canvas, &cam, &scene, &lights);
     println!("Scene drawed");
     canvas.present();
 }
@@ -195,8 +204,10 @@ fn main() -> Result<(), String> {
 
     let mut canvas = window.into_canvas().build().map_err(|e| e.to_string())?;
     let mut look_at_object = 0;
+    let mut camera_movement = Vector3::new(0.0, 0.0, 0.0);
+    let rate_of_camera_movement = 0.3;
 
-    render_scene(&mut canvas, look_at_object);
+    render_scene(&mut canvas, look_at_object, &camera_movement);
 
     let mut events = sdl_context.event_pump()?;
 
@@ -216,9 +227,29 @@ fn main() -> Result<(), String> {
                         break 'main;
                     }
 
+                    if keycode == Keycode::W {
+                        camera_movement += Vector3::new(0.0, 1.0, 0.0) * rate_of_camera_movement;
+                        render_scene(&mut canvas, look_at_object, &camera_movement);
+                    }
+
+                    if keycode == Keycode::S {
+                        camera_movement += Vector3::new(0.0, 1.0, 0.0) * rate_of_camera_movement;
+                        render_scene(&mut canvas, look_at_object, &camera_movement);
+                    }
+
+                    if keycode == Keycode::A {
+                        camera_movement += Vector3::new(-1.0, 0.0, 0.0) * rate_of_camera_movement;
+                        render_scene(&mut canvas, look_at_object, &camera_movement);
+                    }
+
+                    if keycode == Keycode::D {
+                        camera_movement += Vector3::new(1.0, 0.0, 0.0) * rate_of_camera_movement;
+                        render_scene(&mut canvas, look_at_object, &camera_movement);
+                    }
+
                     if keycode == Keycode::Space {
                         look_at_object += 1;
-                        render_scene(&mut canvas, look_at_object);
+                        render_scene(&mut canvas, look_at_object, &camera_movement);
                     }
                 }
 
