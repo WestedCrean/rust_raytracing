@@ -70,6 +70,7 @@ impl Intersectable for Sphere {
                 return Some(IntersectionRecord {
                     intersection_point: t,
                     intersection_vector: p,
+                    object_center: self.center(),
                     object_color: self.get_color(),
                 });
             }
@@ -81,6 +82,7 @@ impl Intersectable for Sphere {
                 return Some(IntersectionRecord {
                     intersection_point: t,
                     intersection_vector: p,
+                    object_center: self.center(),
                     object_color: self.get_color(),
                 });
             }

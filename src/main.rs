@@ -14,19 +14,19 @@ use sdl2::pixels;
 use sdl2::render::Canvas;
 use sdl2::video::Window;
 
-use crate::intersections::nearest_intersected_object;
-use crate::intersections::IntersectionRecord;
-use rand::Rng;
-use rayon::prelude::*;
-// use crate::lights::PositionalLight;
 use crate::camera::Camera;
 use crate::colors::{
     get_vector, BLACK, CARIBBEAN_GREEN, CYCLAMEN, DEEP_PURPLE, MIDDLE_YELLOW,
-    ORANGE_YELLOW_CRAYOLA, PARADISE_PINK,
+    ORANGE_YELLOW_CRAYOLA, PARADISE_PINK, WHITE,
 };
+use crate::intersections::nearest_intersected_object;
+use crate::intersections::IntersectionRecord;
+use crate::lights::{AmbientLight, LightType, PositionalLight};
 use crate::scene::Scene;
 use crate::shapes::Sphere;
 use nalgebra::Vector3;
+use rand::Rng;
+use rayon::prelude::*;
 use sdl2::pixels::Color;
 
 const SCREEN_WIDTH: u32 = 800;
@@ -42,6 +42,8 @@ struct DrawSceneError;
 
 fn initialize_scene() -> Scene {
     let mut scene = Scene::default();
+
+    /* objects */
 
     scene.push(Sphere::new(
         Vector3::new(2.0, 0.0, 0.0),
@@ -85,27 +87,43 @@ fn initialize_scene() -> Scene {
         get_vector(DEEP_PURPLE),
     ));
 
-    scene
-}
+    /* lights */
 
-fn initialize_lights() -> Scene {
-    let mut scene = Scene::default();
-
-    scene.push(Sphere::new(
-        Vector3::new(2.0, 0.0, 0.0),
-        0.7,
-        get_vector(CARIBBEAN_GREEN),
+    scene.add_light(PositionalLight::new(
+        Vector3::new(0.0, -2.0, -2.0),
+        0.9,
+        get_vector(WHITE),
     ));
 
+    scene.add_light(AmbientLight::new(0.4, get_vector(WHITE)));
+
     scene
 }
 
-fn draw_scene(
-    canvas: &mut Canvas<Window>,
-    cam: &Camera,
-    scene: &Scene,
-    lights: &Scene,
-) -> Result<(), String> {
+fn compute_light_intensity(p: Vector3<f32>, n: Vector3<f32>, scene: &Scene) -> f32 {
+    let mut i: f32 = 0.0;
+
+    for light in scene.lights.iter() {
+        match light.light_type() {
+            LightType::Ambient => {
+                i += light.intensity();
+            }
+            LightType::Positional => {
+                let l = light.center() - p;
+
+                let n_dot_l = n.dot(&l);
+
+                if n_dot_l > 0.0 {
+                    i += light.intensity() * (n_dot_l / (n.norm() * l.norm()));
+                }
+            }
+        }
+    }
+
+    i
+}
+
+fn draw_scene(canvas: &mut Canvas<Window>, cam: &Camera, scene: &Scene) -> Result<(), String> {
     // using nice and fast rayon code used from https://github.com/fralken/ray-tracing-in-one-weekend/blob/master/src/main.rs
     // courtesy of https://github.com/fralken
     // as I don't understand flat maps and rayon very much yet
@@ -126,8 +144,15 @@ fn draw_scene(
 
                             match res {
                                 Some(res) => {
+                                    let color = get_vector(res.object_color);
+
                                     /* compute lighting/shading for res.object_color */
-                                    return get_vector(res.object_color);
+
+                                    let P = res.intersection_vector;
+                                    let mut N = P - res.object_center; // sphere normal at intersection
+                                    N = N / N.norm();
+
+                                    return color * compute_light_intensity(P, N, scene);
                                 }
                                 None => return get_vector(BACKGROUND_COLOR),
                             }
@@ -165,7 +190,6 @@ fn render_scene(canvas: &mut Canvas<Window>, look_at_object: i32, camera_movemen
     println!("Initializing scene...");
 
     let scene = initialize_scene();
-    let lights = initialize_lights();
     let look_from = Vector3::new(-0.5, 0.0, 0.0) + camera_movement;
     let look_at = scene.get_nth_element_center(look_at_object);
     let focus_dist = 10.0;
@@ -187,7 +211,7 @@ fn render_scene(canvas: &mut Canvas<Window>, look_at_object: i32, camera_movemen
     );
 
     println!("Drawing scene");
-    draw_scene(canvas, &cam, &scene, &lights);
+    draw_scene(canvas, &cam, &scene);
     println!("Scene drawed");
     canvas.present();
 }
@@ -238,12 +262,12 @@ fn main() -> Result<(), String> {
                     }
 
                     if keycode == Keycode::A {
-                        camera_movement += Vector3::new(-1.0, 0.0, 0.0) * rate_of_camera_movement;
+                        camera_movement += Vector3::new(0.0, 0.0, -1.0) * rate_of_camera_movement;
                         render_scene(&mut canvas, look_at_object, &camera_movement);
                     }
 
                     if keycode == Keycode::D {
-                        camera_movement += Vector3::new(1.0, 0.0, 0.0) * rate_of_camera_movement;
+                        camera_movement += Vector3::new(0.0, 0.0, 1.0) * rate_of_camera_movement;
                         render_scene(&mut canvas, look_at_object, &camera_movement);
                     }
 
@@ -251,15 +275,6 @@ fn main() -> Result<(), String> {
                         look_at_object += 1;
                         render_scene(&mut canvas, look_at_object, &camera_movement);
                     }
-                }
-
-                Event::MouseButtonDown { x, y, .. } => {
-                    let color = pixels::Color::RGB(x as u8, y as u8, 255);
-                    let _ = canvas.line(lastx, lasty, x as i16, y as i16, color);
-                    lastx = x as i16;
-                    lasty = y as i16;
-                    println!("mouse btn down at ({},{})", x, y);
-                    canvas.present();
                 }
 
                 _ => {}

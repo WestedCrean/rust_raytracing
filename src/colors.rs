@@ -14,6 +14,7 @@ pub const DEEP_PURPLE: Color = Color::RGB(72, 12, 168);
 pub const SPACE: Color = Color::RGB(63, 55, 201);
 pub const DEEP_MAGENTA: Color = Color::RGB(181, 23, 158);
 pub const BLACK: Color = Color::RGB(0, 0, 32);
+pub const WHITE: Color = Color::RGB(255, 255, 255);
 
 pub fn get_color(vec: Vector3<f32>) -> Color {
     Color::RGB(vec[0] as u8, vec[1] as u8, vec[2] as u8)

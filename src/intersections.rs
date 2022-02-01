@@ -7,6 +7,7 @@ use nalgebra::Vector3;
 pub struct IntersectionRecord {
     pub intersection_point: f32,
     pub intersection_vector: Vector3<f32>,
+    pub object_center: Vector3<f32>,
     pub object_color: Color,
 }
 pub trait Intersectable: Sync {
