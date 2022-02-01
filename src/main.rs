@@ -20,7 +20,6 @@ use crate::colors::{
     ORANGE_YELLOW_CRAYOLA, PARADISE_PINK, WHITE,
 };
 use crate::intersections::nearest_intersected_object;
-use crate::intersections::IntersectionRecord;
 use crate::lights::{AmbientLight, LightType, PositionalLight};
 use crate::scene::Scene;
 use crate::shapes::Sphere;
@@ -49,42 +48,49 @@ fn initialize_scene() -> Scene {
         Vector3::new(2.0, 0.0, 0.0),
         0.7,
         get_vector(CARIBBEAN_GREEN),
+        6100.0,
     ));
 
     scene.push(Sphere::new(
         Vector3::new(0.96, 0.36, 0.0),
         0.1,
         get_vector(CYCLAMEN),
+        70.0,
     ));
 
     scene.push(Sphere::new(
         Vector3::new(0.96, 0.85, -0.52),
         0.15,
         get_vector(DEEP_PURPLE),
+        40.0,
     ));
 
     scene.push(Sphere::new(
         Vector3::new(0.96, -0.53, -0.36),
         0.15,
         get_vector(ORANGE_YELLOW_CRAYOLA),
+        370.0,
     ));
 
     scene.push(Sphere::new(
         Vector3::new(1.0, -0.9, 0.1),
         0.23,
         get_vector(PARADISE_PINK),
+        570.0,
     ));
 
     scene.push(Sphere::new(
         Vector3::new(1.3, 0.6, 0.6),
         0.15,
         get_vector(MIDDLE_YELLOW),
+        270.0,
     ));
 
     scene.push(Sphere::new(
         Vector3::new(3.0, -0.4, 1.0),
         0.2,
         get_vector(DEEP_PURPLE),
+        10.0,
     ));
 
     /* lights */
@@ -100,7 +106,13 @@ fn initialize_scene() -> Scene {
     scene
 }
 
-fn compute_light_intensity(p: Vector3<f32>, n: Vector3<f32>, scene: &Scene) -> f32 {
+fn compute_light_intensity(
+    p: Vector3<f32>,
+    n: Vector3<f32>,
+    scene: &Scene,
+    v: Vector3<f32>,
+    s: f32,
+) -> f32 {
     let mut i: f32 = 0.0;
 
     for light in scene.lights.iter() {
@@ -115,6 +127,14 @@ fn compute_light_intensity(p: Vector3<f32>, n: Vector3<f32>, scene: &Scene) -> f
 
                 if n_dot_l > 0.0 {
                     i += light.intensity() * (n_dot_l / (n.norm() * l.norm()));
+                }
+
+                if s > 0.0 {
+                    let r = 2.0 * n * n.dot(&l) - &l;
+                    let r_dot_v = r.dot(&v);
+                    if r_dot_v > 0.0 {
+                        i += light.intensity() * f32::powf(r_dot_v / (r.norm() * v.norm()), s);
+                    }
                 }
             }
         }
@@ -152,7 +172,14 @@ fn draw_scene(canvas: &mut Canvas<Window>, cam: &Camera, scene: &Scene) -> Resul
                                     let mut N = P - res.object_center; // sphere normal at intersection
                                     N = N / N.norm();
 
-                                    return color * compute_light_intensity(P, N, scene);
+                                    return color
+                                        * compute_light_intensity(
+                                            P,
+                                            N,
+                                            scene,
+                                            -ray.direction(),
+                                            res.object_specular,
+                                        );
                                 }
                                 None => return get_vector(BACKGROUND_COLOR),
                             }
