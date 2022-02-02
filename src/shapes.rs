@@ -10,6 +10,7 @@ pub struct Sphere {
     pub color: Vector3<f32>,
     pub specular: f32,
     pub reflective: f32,
+    pub refractive: f32,
     //ambient: Vector3<f32>,
     //diffuse: Vector3<f32>,
     //specular: Vector3<f32>
@@ -22,6 +23,7 @@ impl Sphere {
         color: Vector3<f32>,
         specular: f32,
         reflective: f32,
+        refractive: f32,
     ) -> Self {
         Sphere {
             center,
@@ -29,6 +31,7 @@ impl Sphere {
             color,
             specular,
             reflective,
+            refractive,
         }
     }
 
@@ -46,6 +49,10 @@ impl Sphere {
 
     pub fn reflective(&self) -> f32 {
         self.reflective
+    }
+
+    pub fn refractive(&self) -> f32 {
+        self.refractive
     }
 
     pub fn color_vector(&self) -> Vector3<f32> {
@@ -91,6 +98,7 @@ impl Intersectable for Sphere {
                     object_color: self.get_color(),
                     object_specular: self.specular(),
                     object_reflective: self.reflective(),
+                    object_refractive: self.refractive(),
                 });
             }
 
@@ -105,6 +113,7 @@ impl Intersectable for Sphere {
                     object_color: self.get_color(),
                     object_specular: self.specular(),
                     object_reflective: self.reflective(),
+                    object_refractive: self.refractive(),
                 });
             }
         }

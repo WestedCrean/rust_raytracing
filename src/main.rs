@@ -36,6 +36,9 @@ const SCREEN_WIDTH: u32 = 800;
 const SCREEN_HEIGHT: u32 = 600;
 const SAMPLES_PER_PIXEL: u32 = 4;
 
+const REFRACTIVE_INDEX_OF_AMBER: f32 = 1.55;
+const REFRACTIVE_INDEX_OF_DIAMOND: f32 = 2.417;
+
 // colors palette
 
 const BACKGROUND_COLOR: pixels::Color = BLACK;
@@ -53,7 +56,8 @@ fn initialize_scene() -> Scene {
         0.7,
         get_vector(CARIBBEAN_GREEN),
         6100.0,
-        0.1,
+        0.3,
+        REFRACTIVE_INDEX_OF_AMBER,
     ));
 
     scene.push(Sphere::new(
@@ -61,7 +65,8 @@ fn initialize_scene() -> Scene {
         0.1,
         get_vector(PARADISE_PINK),
         70.0,
-        0.1,
+        0.0,
+        REFRACTIVE_INDEX_OF_AMBER,
     ));
 
     scene.push(Sphere::new(
@@ -69,7 +74,8 @@ fn initialize_scene() -> Scene {
         0.15,
         get_vector(DEEP_PURPLE),
         40.0,
-        0.1,
+        0.0,
+        REFRACTIVE_INDEX_OF_AMBER,
     ));
 
     scene.push(Sphere::new(
@@ -77,7 +83,8 @@ fn initialize_scene() -> Scene {
         0.15,
         get_vector(ROSSO_CORSA),
         370.0,
-        0.1,
+        0.5,
+        REFRACTIVE_INDEX_OF_AMBER,
     ));
 
     scene.push(Sphere::new(
@@ -85,15 +92,8 @@ fn initialize_scene() -> Scene {
         0.23,
         get_vector(RUST),
         570.0,
-        0.1,
-    ));
-
-    scene.push(Sphere::new(
-        Vector3::new(1.3, 0.6, 0.6),
-        0.15,
-        get_vector(SILVER),
-        270.0,
-        0.3,
+        0.2,
+        REFRACTIVE_INDEX_OF_AMBER,
     ));
 
     scene.push(Sphere::new(
@@ -102,6 +102,7 @@ fn initialize_scene() -> Scene {
         get_vector(NEON_BLUE),
         270.0,
         0.8,
+        REFRACTIVE_INDEX_OF_AMBER,
     ));
 
     scene.push(Sphere::new(
@@ -109,7 +110,8 @@ fn initialize_scene() -> Scene {
         0.2,
         get_vector(SPACE),
         0.0,
-        0.7,
+        0.0,
+        REFRACTIVE_INDEX_OF_AMBER,
     ));
 
     scene.push(Sphere::new(
@@ -117,7 +119,8 @@ fn initialize_scene() -> Scene {
         0.05,
         get_vector(METALLIC_SEAWEED),
         400.0,
-        0.1,
+        0.0,
+        REFRACTIVE_INDEX_OF_AMBER,
     ));
 
     scene.push(Sphere::new(
@@ -125,7 +128,8 @@ fn initialize_scene() -> Scene {
         0.05,
         get_vector(ORANGE_YELLOW),
         6100.0,
-        0.1,
+        0.7,
+        REFRACTIVE_INDEX_OF_DIAMOND,
     ));
 
     /* lights */
@@ -143,6 +147,17 @@ fn initialize_scene() -> Scene {
 
 fn reflect_ray(ray: &Ray, normal: Vector3<f32>, new_origin: Vector3<f32>) -> Ray {
     let new_direction = 2.0 * normal * normal.dot(&ray.direction()) - ray.direction();
+    return Ray::new(new_origin, new_direction);
+}
+
+fn refract_ray(
+    ray: &Ray,
+    normal: Vector3<f32>,
+    new_origin: Vector3<f32>,
+    refractive_index: f32,
+) -> Ray {
+    let new_direction = 2.0 * normal * normal.dot(&ray.direction()) - ray.direction();
+
     return Ray::new(new_origin, new_direction);
 }
 
@@ -211,6 +226,7 @@ fn trace_ray(
                 * compute_light_intensity(P, N, scene, -ray.direction(), res.object_specular);
 
             let reflective = res.object_reflective;
+            let refraction_index = res.object_refractive;
             if reflective <= 0.0 || recursion_depth <= 0 {
                 return local_color;
             }
@@ -220,7 +236,16 @@ fn trace_ray(
             let reflected_color =
                 trace_ray(&reflected_ray, scene, 0.001, f32::MAX, recursion_depth - 1);
 
-            return local_color * (1.0 - reflective) + reflected_color * reflective;
+            let local_reflected = local_color * (1.0 - reflective) + reflected_color * reflective;
+            if refraction_index == REFRACTIVE_INDEX_OF_AMBER {
+                return local_reflected;
+            }
+
+            let refracted_ray = reflect_ray(&ray, -N, P);
+            let refracted_color =
+                trace_ray(&refracted_ray, scene, 0.001, f32::MAX, recursion_depth - 1);
+
+            return local_reflected + refracted_color;
         }
         None => return get_vector(BACKGROUND_COLOR),
     }

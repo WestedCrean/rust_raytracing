@@ -10,6 +10,7 @@ pub struct IntersectionRecord {
     pub object_color: Color,
     pub object_specular: f32,
     pub object_reflective: f32,
+    pub object_refractive: f32,
 }
 pub trait Intersectable: Sync {
     fn center(&self) -> Vector3<f32>;
