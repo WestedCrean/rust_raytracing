@@ -1,6 +1,5 @@
 use crate::ray::Ray;
 use crate::scene::Scene;
-use crate::shapes::Sphere;
 use sdl2::pixels::Color;
 
 use nalgebra::Vector3;
@@ -10,37 +9,11 @@ pub struct IntersectionRecord {
     pub object_center: Vector3<f32>,
     pub object_color: Color,
     pub object_specular: f32,
+    pub object_reflective: f32,
 }
 pub trait Intersectable: Sync {
     fn center(&self) -> Vector3<f32>;
     fn intersect(&self, ray: &Ray, t_min: f32, t_max: f32) -> Option<IntersectionRecord>;
-}
-
-pub fn ray_sphere_intersection(ray: &Ray, sphere: &Sphere) -> Option<f32> {
-    let radius = sphere.radius;
-
-    let ray_direction: Vector3<f32> = ray.direction(); // d = L - E ( Direction vector of ray, from start to end )
-    let ray_to_sphere: Vector3<f32> = ray.origin() - sphere.center; // f = E - C ( Vector from center sphere to ray start )
-
-    let a = ray_direction.dot(&ray_direction);
-    let b = 2.0 * ray_to_sphere.dot(&ray_direction);
-    let c: f32 = ray_to_sphere.dot(&ray_to_sphere) - (radius * radius);
-    let delta = (b * b) - 4.0 * a * c;
-
-    // println!("{}x^2 + {}x + {}", a, b, c);
-    // println!("delta: {}", delta);
-
-    if delta > 0.0 {
-        let t1 = (-b + f32::sqrt(delta)) / (2.0 * a);
-        let t2 = (-b - f32::sqrt(delta)) / (2.0 * a);
-
-        if (t1 > 0.0) & (t2 > 0.0) {
-            return Some(f32::min(t1, t2));
-        }
-    } else if delta == 0.0 {
-        return Some(-b / 2.0);
-    }
-    return None;
 }
 
 pub fn nearest_intersected_object<'a>(

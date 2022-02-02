@@ -7,6 +7,10 @@ mod scene;
 mod shapes;
 extern crate sdl2;
 
+use std::f32::INFINITY;
+
+use colors::{ROSSO_CORSA, SILVER, SPACE};
+use ray::Ray;
 use sdl2::event::Event;
 use sdl2::gfx::primitives::DrawRenderer;
 use sdl2::keyboard::Keycode;
@@ -16,8 +20,8 @@ use sdl2::video::Window;
 
 use crate::camera::Camera;
 use crate::colors::{
-    get_vector, BLACK, CARIBBEAN_GREEN, CYCLAMEN, DEEP_PURPLE, MIDDLE_YELLOW,
-    ORANGE_YELLOW_CRAYOLA, PARADISE_PINK, WHITE,
+    get_vector, BLACK, CARIBBEAN_GREEN, DEEP_PURPLE, MEDIUM_SPRING_GREEN, METALLIC_SEAWEED,
+    NEON_BLUE, ORANGE_YELLOW, PARADISE_PINK, RUST, WHITE,
 };
 use crate::intersections::nearest_intersected_object;
 use crate::lights::{AmbientLight, LightType, PositionalLight};
@@ -49,13 +53,15 @@ fn initialize_scene() -> Scene {
         0.7,
         get_vector(CARIBBEAN_GREEN),
         6100.0,
+        0.1,
     ));
 
     scene.push(Sphere::new(
         Vector3::new(0.96, 0.36, 0.0),
         0.1,
-        get_vector(CYCLAMEN),
+        get_vector(PARADISE_PINK),
         70.0,
+        0.1,
     ));
 
     scene.push(Sphere::new(
@@ -63,34 +69,63 @@ fn initialize_scene() -> Scene {
         0.15,
         get_vector(DEEP_PURPLE),
         40.0,
+        0.1,
     ));
 
     scene.push(Sphere::new(
-        Vector3::new(0.96, -0.53, -0.36),
+        Vector3::new(1.2, -0.53, -0.36),
         0.15,
-        get_vector(ORANGE_YELLOW_CRAYOLA),
+        get_vector(ROSSO_CORSA),
         370.0,
+        0.1,
     ));
 
     scene.push(Sphere::new(
-        Vector3::new(1.0, -0.9, 0.1),
+        Vector3::new(1.2, -0.7, 0.7),
         0.23,
-        get_vector(PARADISE_PINK),
+        get_vector(RUST),
         570.0,
+        0.1,
     ));
 
     scene.push(Sphere::new(
         Vector3::new(1.3, 0.6, 0.6),
         0.15,
-        get_vector(MIDDLE_YELLOW),
+        get_vector(SILVER),
         270.0,
+        0.3,
+    ));
+
+    scene.push(Sphere::new(
+        Vector3::new(1.0, 0.5, 0.6),
+        0.2,
+        get_vector(NEON_BLUE),
+        270.0,
+        0.8,
     ));
 
     scene.push(Sphere::new(
         Vector3::new(3.0, -0.4, 1.0),
         0.2,
-        get_vector(DEEP_PURPLE),
-        10.0,
+        get_vector(SPACE),
+        0.0,
+        0.7,
+    ));
+
+    scene.push(Sphere::new(
+        Vector3::new(2.0, -0.6, 2.0),
+        0.05,
+        get_vector(METALLIC_SEAWEED),
+        400.0,
+        0.1,
+    ));
+
+    scene.push(Sphere::new(
+        Vector3::new(1.0, 0.05, 0.05),
+        0.05,
+        get_vector(ORANGE_YELLOW),
+        6100.0,
+        0.1,
     ));
 
     /* lights */
@@ -104,6 +139,11 @@ fn initialize_scene() -> Scene {
     scene.add_light(AmbientLight::new(0.4, get_vector(WHITE)));
 
     scene
+}
+
+fn reflect_ray(ray: &Ray, normal: Vector3<f32>, new_origin: Vector3<f32>) -> Ray {
+    let new_direction = 2.0 * normal * normal.dot(&ray.direction()) - ray.direction();
+    return Ray::new(new_origin, new_direction);
 }
 
 fn compute_light_intensity(
@@ -122,9 +162,16 @@ fn compute_light_intensity(
             }
             LightType::Positional => {
                 let l = light.center() - p;
+                let t_max = 100.0;
+
+                // is in shadow?
+                let shadow_ray = Ray::new(p, l);
+                let res = nearest_intersected_object(scene, &shadow_ray, 0.001, t_max);
+                if res.is_some() {
+                    continue;
+                }
 
                 let n_dot_l = n.dot(&l);
-
                 if n_dot_l > 0.0 {
                     i += light.intensity() * (n_dot_l / (n.norm() * l.norm()));
                 }
@@ -143,6 +190,42 @@ fn compute_light_intensity(
     i
 }
 
+fn trace_ray(
+    ray: &Ray,
+    scene: &Scene,
+    t_min: f32,
+    t_max: f32,
+    recursion_depth: i32,
+) -> Vector3<f32> {
+    let res = nearest_intersected_object(scene, &ray, t_min, t_max);
+
+    match res {
+        Some(res) => {
+            /* compute lighting/shading for res.object_color */
+
+            let P = res.intersection_vector;
+            let mut N = P - res.object_center; // sphere normal at intersection
+            N = N / N.norm();
+
+            let local_color = get_vector(res.object_color)
+                * compute_light_intensity(P, N, scene, -ray.direction(), res.object_specular);
+
+            let reflective = res.object_reflective;
+            if reflective <= 0.0 || recursion_depth <= 0 {
+                return local_color;
+            }
+
+            let reflected_ray = reflect_ray(&ray, N, P);
+
+            let reflected_color =
+                trace_ray(&reflected_ray, scene, 0.001, f32::MAX, recursion_depth - 1);
+
+            return local_color * (1.0 - reflective) + reflected_color * reflective;
+        }
+        None => return get_vector(BACKGROUND_COLOR),
+    }
+}
+
 fn draw_scene(canvas: &mut Canvas<Window>, cam: &Camera, scene: &Scene) -> Result<(), String> {
     // using nice and fast rayon code used from https://github.com/fralken/ray-tracing-in-one-weekend/blob/master/src/main.rs
     // courtesy of https://github.com/fralken
@@ -159,30 +242,7 @@ fn draw_scene(canvas: &mut Canvas<Window>, cam: &Camera, scene: &Scene) -> Resul
                             let y = (j as f32) / SCREEN_HEIGHT as f32;
 
                             let ray = cam.get_ray(x, y);
-
-                            let res = nearest_intersected_object(scene, &ray, 0.001, f32::MAX);
-
-                            match res {
-                                Some(res) => {
-                                    let color = get_vector(res.object_color);
-
-                                    /* compute lighting/shading for res.object_color */
-
-                                    let P = res.intersection_vector;
-                                    let mut N = P - res.object_center; // sphere normal at intersection
-                                    N = N / N.norm();
-
-                                    return color
-                                        * compute_light_intensity(
-                                            P,
-                                            N,
-                                            scene,
-                                            -ray.direction(),
-                                            res.object_specular,
-                                        );
-                                }
-                                None => return get_vector(BACKGROUND_COLOR),
-                            }
+                            trace_ray(&ray, &scene, 0.001, f32::MAX, 2)
                         })
                         .sum();
 
