@@ -4,4 +4,4 @@ Implementations from book "Computer graphics from scratch" by Gabriel Gambetta, 
 
 Rendered using SDL2, parallelized code using [Rayon](https://github.com/rayon-rs/rayon)
 
-![raytraced image](https://github.com/WestedCrean/rust_raytracing/blob/main/output.png?raw=true)
+![raytraced image](https://github.com/WestedCrean/rust_raytracing/blob/main/output.png)
